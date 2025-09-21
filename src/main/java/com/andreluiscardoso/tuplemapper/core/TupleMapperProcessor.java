@@ -4,13 +4,13 @@ import com.andreluiscardoso.tuplemapper.annotations.TupleField;
 import com.andreluiscardoso.tuplemapper.annotations.TupleMapper;
 import com.andreluiscardoso.tuplemapper.converter.TupleConverter;
 import jakarta.persistence.Tuple;
-import jakarta.persistence.TupleElement;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
-import java.util.HashMap;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -23,6 +23,8 @@ import java.util.stream.Collectors;
  * </p>
  */
 public class TupleMapperProcessor {
+
+    private static final Map<Class<?>, MapperMetadata<?>> CACHE = new ConcurrentHashMap<>();
 
     /**
      * Maps a {@link Tuple} into an instance of the given {@code targetClass}.
@@ -48,38 +50,14 @@ public class TupleMapperProcessor {
             throw new IllegalArgumentException("Class " + targetClass.getName() + " is not annotated with @TupleMapper");
         }
 
-        try {
-            Constructor<T> constructor = targetClass.getDeclaredConstructor();
-            constructor.setAccessible(true);
-            T instance = constructor.newInstance();
+        MapperMetadata<T> metadata = getMetadata(targetClass);
+        T instance = metadata.newInstance();
 
-            for (Field field : targetClass.getDeclaredFields()) {
-                if (!field.isAnnotationPresent(TupleField.class)) continue;
-
-                TupleField tupleField = field.getAnnotation(TupleField.class);
-                String fieldName = tupleField.name().isEmpty() ? field.getName() : tupleField.name();
-                Object value = tuple.get(fieldName);
-
-                if (value == null) continue;
-
-                Class<? extends TupleConverter<?, ?>> converterClass = tupleField.converter();
-
-                // Apply converter only if specified
-                if (!converterClass.equals(TupleConverter.None.class)) {
-                    @SuppressWarnings("unchecked")
-                    TupleConverter<Object, Object> converter = (TupleConverter<Object, Object>) converterClass.getDeclaredConstructor().newInstance();
-                    value = converter.convert(value);
-                }
-
-                field.setAccessible(true);
-                field.set(instance, value);
-            }
-
-            return instance;
-
-        } catch (Exception e) {
-            throw new RuntimeException("Error mapping Tuple to " + targetClass.getName(), e);
+        for (FieldMapping mapping : metadata.fieldMappings) {
+            mapping.apply(instance, tuple);
         }
+
+        return instance;
     }
 
     /**
@@ -103,4 +81,79 @@ public class TupleMapperProcessor {
 
         return tuples.stream().map(tuple -> map(tuple, targetClass)).collect(Collectors.toList());
     }
+
+    @SuppressWarnings("unchecked")
+    private static <T> MapperMetadata<T> getMetadata(Class<T> targetClass) {
+        return (MapperMetadata<T>) CACHE.computeIfAbsent(targetClass, MapperMetadata::new);
+    }
+
+    private static class MapperMetadata<T> {
+        private final Constructor<T> constructor;
+        private final List<FieldMapping> fieldMappings;
+
+        MapperMetadata(Class<T> targetClass) {
+            try {
+                this.constructor = targetClass.getDeclaredConstructor();
+                this.constructor.setAccessible(true);
+
+                this.fieldMappings = Arrays.stream(targetClass.getDeclaredFields())
+                        .filter(f -> f.isAnnotationPresent(TupleField.class))
+                        .map(FieldMapping::new)
+                        .collect(Collectors.toList());
+
+            } catch (Exception e) {
+                throw new RuntimeException("Error building metadata for " + targetClass.getName(), e);
+            }
+        }
+
+        T newInstance() {
+            try {
+                return constructor.newInstance();
+            } catch (Exception e) {
+                throw new RuntimeException("Error instantiating " + constructor.getDeclaringClass().getName(), e);
+            }
+        }
+    }
+
+    private static class FieldMapping {
+        private final Field field;
+        private final String alias;
+        private final TupleConverter<Object, Object> converter;
+
+        FieldMapping(Field field) {
+            try {
+                this.field = field;
+                this.field.setAccessible(true);
+
+                TupleField tupleField = field.getAnnotation(TupleField.class);
+                this.alias = tupleField.name().isEmpty() ? field.getName() : tupleField.name();
+
+                if (!tupleField.converter().equals(TupleConverter.None.class)) {
+                    @SuppressWarnings("unchecked")
+                    TupleConverter<Object, Object> conv =
+                            (TupleConverter<Object, Object>) tupleField.converter().getDeclaredConstructor().newInstance();
+                    this.converter = conv;
+                } else {
+                    this.converter = null;
+                }
+            } catch (Exception e) {
+                throw new RuntimeException("Error building field mapping for " + field.getName(), e);
+            }
+        }
+
+        void apply(Object instance, Tuple tuple) {
+            try {
+                Object value = tuple.get(alias);
+                if (value != null) {
+                    if (converter != null) {
+                        value = converter.convert(value);
+                    }
+                    field.set(instance, value);
+                }
+            } catch (Exception e) {
+                throw new RuntimeException("Error mapping field '" + field.getName() + "' of class " + instance.getClass().getSimpleName() + ": " + e.getMessage(), e);
+            }
+        }
+    }
+
 }
