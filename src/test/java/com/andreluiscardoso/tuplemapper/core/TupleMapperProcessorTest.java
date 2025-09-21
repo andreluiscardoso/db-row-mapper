@@ -63,7 +63,7 @@ class TupleMapperProcessorTest {
         TupleElement<String> element = Mockito.mock(TupleElement.class);
         Mockito.when(element.getAlias()).thenReturn("includedField");
         Mockito.when(tuple.getElements()).thenReturn(List.of(element));
-        Mockito.when(tuple.get(element)).thenReturn("value");
+        Mockito.when(tuple.get("includedField")).thenReturn("value");
 
         Partial obj = TupleMapperProcessor.map(tuple, Partial.class);
 
@@ -115,7 +115,7 @@ class TupleMapperProcessorTest {
         TupleElement<String> element = Mockito.mock(TupleElement.class);
         Mockito.when(element.getAlias()).thenReturn("date");
         Mockito.when(tuple.getElements()).thenReturn(List.of(element));
-        Mockito.when(tuple.get(element)).thenReturn("1970-01-01");
+        Mockito.when(tuple.get("date")).thenReturn("1970-01-01");
 
         DateClass dto = TupleMapperProcessor.map(tuple, DateClass.class);
 
@@ -139,7 +139,7 @@ class TupleMapperProcessorTest {
         TupleElement<String> element = Mockito.mock(TupleElement.class);
         Mockito.when(element.getAlias()).thenReturn("name");
         Mockito.when(tuple.getElements()).thenReturn(List.of(element));
-        Mockito.when(tuple.get(element)).thenReturn("Java");
+        Mockito.when(tuple.get("name")).thenReturn("Java");
 
         DirectAssignment obj = TupleMapperProcessor.map(tuple, DirectAssignment.class);
 
@@ -170,7 +170,7 @@ class TupleMapperProcessorTest {
         TupleElement<String> element = Mockito.mock(TupleElement.class);
         Mockito.when(element.getAlias()).thenReturn("field");
         Mockito.when(tuple.getElements()).thenReturn(List.of(element));
-        Mockito.when(tuple.get(element)).thenReturn("fail");
+        Mockito.when(tuple.get("field")).thenReturn("fail");
 
         assertThatThrownBy(() -> TupleMapperProcessor.map(tuple, ExceptionConverter.class))
                 .isInstanceOf(RuntimeException.class)
@@ -187,10 +187,10 @@ class TupleMapperProcessorTest {
         TupleElement<String> element1 = Mockito.mock(TupleElement.class);
         Mockito.when(element1.getAlias()).thenReturn("includedField");
         Mockito.when(tuple1.getElements()).thenReturn(List.of(element1));
-        Mockito.when(tuple1.get(element1)).thenReturn("value1");
+        Mockito.when(tuple1.get("includedField")).thenReturn("value1");
 
         Mockito.when(tuple2.getElements()).thenReturn(List.of(element1));
-        Mockito.when(tuple2.get(element1)).thenReturn("value2");
+        Mockito.when(tuple2.get("includedField")).thenReturn("value2");
 
         List<Tuple> tuples = List.of(tuple1, tuple2);
 

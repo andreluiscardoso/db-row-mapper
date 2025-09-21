@@ -53,17 +53,12 @@ public class TupleMapperProcessor {
             constructor.setAccessible(true);
             T instance = constructor.newInstance();
 
-            Map<String, Object> tupleValues = new HashMap<>();
-            for (TupleElement<?> element : tuple.getElements()) {
-                tupleValues.put(element.getAlias(), tuple.get(element));
-            }
-
             for (Field field : targetClass.getDeclaredFields()) {
                 if (!field.isAnnotationPresent(TupleField.class)) continue;
 
                 TupleField tupleField = field.getAnnotation(TupleField.class);
                 String fieldName = tupleField.name().isEmpty() ? field.getName() : tupleField.name();
-                Object value = tupleValues.get(fieldName);
+                Object value = tuple.get(fieldName);
 
                 if (value == null) continue;
 
