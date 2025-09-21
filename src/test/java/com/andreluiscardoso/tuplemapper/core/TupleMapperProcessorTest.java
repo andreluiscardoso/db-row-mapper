@@ -174,7 +174,8 @@ class TupleMapperProcessorTest {
 
         assertThatThrownBy(() -> TupleMapperProcessor.map(tuple, ExceptionConverter.class))
                 .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("Error mapping Tuple");
+                .hasMessageContaining("Error mapping field 'field'")
+                .hasMessageContaining("ExceptionConverter");
     }
 
     @Test
