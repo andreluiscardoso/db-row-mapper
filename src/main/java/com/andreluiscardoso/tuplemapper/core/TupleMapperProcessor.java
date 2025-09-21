@@ -21,6 +21,10 @@ import java.util.stream.Collectors;
  * will be assigned. If a {@link TupleConverter} is specified, it will be applied
  * before assignment.
  * </p>
+ * <p>
+ * This processor uses an internal cache to store metadata about classes and fields,
+ * including constructors and converters, to improve performance in repeated mappings.
+ * </p>
  */
 public class TupleMapperProcessor {
 
@@ -32,6 +36,9 @@ public class TupleMapperProcessor {
      * The target class must be annotated with {@link TupleMapper}. For each field
      * annotated with {@link TupleField}, the value from the tuple will be assigned.
      * If a {@link TupleConverter} is provided, it will be applied before assignment.
+     * <p>
+     * Exceptions thrown during conversion or assignment are wrapped in a {@link RuntimeException}
+     * with a message including the field name and class.
      * </p>
      *
      * @param tuple       the tuple to map; must not be {@code null}
@@ -87,6 +94,9 @@ public class TupleMapperProcessor {
         return (MapperMetadata<T>) CACHE.computeIfAbsent(targetClass, MapperMetadata::new);
     }
 
+    /**
+     * Holds metadata for a target class, including constructor and field mappings.
+     */
     private static class MapperMetadata<T> {
         private final Constructor<T> constructor;
         private final List<FieldMapping> fieldMappings;
@@ -115,6 +125,9 @@ public class TupleMapperProcessor {
         }
     }
 
+    /**
+     * Represents a single field mapping, including the alias and optional converter.
+     */
     private static class FieldMapping {
         private final Field field;
         private final String alias;
@@ -141,6 +154,14 @@ public class TupleMapperProcessor {
             }
         }
 
+        /**
+         * Applies the mapping for a single field: retrieves the value from the tuple,
+         * applies the converter if present, and sets the value into the target instance.
+         *
+         * @param instance the target instance to populate
+         * @param tuple    the tuple providing values
+         * @throws RuntimeException if conversion or assignment fails, with detailed message
+         */
         void apply(Object instance, Tuple tuple) {
             try {
                 Object value = tuple.get(alias);
